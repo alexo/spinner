@@ -1,8 +1,6 @@
 package io.github.alexo.spinner;
 
 import io.github.alexo.spinner.Spinner.Clock;
-import io.github.alexo.spinner.Spinner.SlotSupplier;
-import io.github.alexo.spinner.Spinner.SlotsAggregator;
 
 /**
  * Holds Spinner slot related settings.

@@ -5,8 +5,6 @@ import static org.mockito.Mockito.when;
 import io.github.alexo.spinner.Spinner;
 import io.github.alexo.spinner.SpinnerConfig;
 import io.github.alexo.spinner.Spinner.Clock;
-import io.github.alexo.spinner.Spinner.SlotSupplier;
-import io.github.alexo.spinner.Spinner.SlotsAggregator;
 
 import java.util.Iterator;
 import java.util.concurrent.Callable;

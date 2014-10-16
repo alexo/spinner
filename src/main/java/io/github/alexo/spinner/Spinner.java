@@ -1,6 +1,5 @@
 package io.github.alexo.spinner;
 
-import java.util.Iterator;
 import java.util.Queue;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -45,23 +44,6 @@ public class Spinner<I, O> {
 
     public static <I, O> Spinner<I, O> create(final SpinnerConfig<I, O> config) {
         return new Spinner<I, O>(config);
-    }
-
-    public static interface SlotsAggregator<I, O> {
-        O aggregate(Iterator<I> slotsIterator, I latestElapsedSlot);
-    }
-
-    /**
-     * Factory for slot objects of type <I>. The implementation is responsible for providing a fresh instance each time the expired slot
-     * must be replaced with a new one.
-     *
-     * @param <I> the type of slot object.
-     */
-    public static interface SlotSupplier<I> {
-        /**
-         * @return the instance type <I> to replace the expired slot.
-         */
-        I get();
     }
 
     /**
@@ -207,7 +189,7 @@ public class Spinner<I, O> {
     /**
      * @VisibleForTesting
      */
-    public SpinnerConfig<I, O> getConfig() {
+    SpinnerConfig<I, O> getConfig() {
         return config;
     }
 }
