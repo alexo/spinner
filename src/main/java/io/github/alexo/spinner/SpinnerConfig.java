@@ -121,13 +121,13 @@ public class SpinnerConfig<I, O> {
      * @param message the exception message if invalid
      * @throws IllegalArgumentException if expression is <code>false</code>
      */
-    public static void isTrue(final boolean expression, final String message) {
+    private static void isTrue(final boolean expression, final String message) {
         if (expression == false) {
             throw new IllegalArgumentException(message);
         }
     }
 
-    public static void notNull(final Object object) {
+    private static void notNull(final Object object) {
         if (object == null) {
             throw new IllegalArgumentException();
         }
