@@ -8,7 +8,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Data structure responsible for managing data based on time slots. The underlying implementation uses a queue to store the elapsed data
+ * Data structure responsible for managing data based on time slots. The underlying implementation uses a queue to store the expired data
  * slots (a limited number). The spinner is similar to a ring buffer, it rotates/moves one data slot every time the current slot slips by.
  * Besides keeping track of time slots data and rotating the Spinner also aggregates all the slots and this aggregation happens every time
  * it rotates/moves.
@@ -30,7 +30,7 @@ public class Spinner<I, O> {
      */
     private volatile I currentSlot;
     /**
-     * Aggregated data based on previously elapsed slots (which are still stored in this spinner).
+     * Aggregated data based on previously expired slots (which are still stored in this spinner).
      */
     private volatile O data;
     /**
@@ -95,13 +95,13 @@ public class Spinner<I, O> {
     }
 
     /**
-     * If the current slot has elapsed triggers the slot change operations in a thread safe manner.
+     * If the current slot has expired, triggers the slot change operations in a thread safe manner.
      */
     private void changeSlotIfRequired() {
-        if (isSlotElapsed()) {
+        if (isSlotExpired()) {
             if (slotIsChanging.compareAndSet(false, true)) {
                 try {
-                    if (isSlotElapsed()) {
+                    if (isSlotExpired()) {
                         doSlotChange();
                     }
                 } finally {
@@ -113,7 +113,7 @@ public class Spinner<I, O> {
 
     private void doSlotChange() {
         // first thing first - move the slot
-        final I elapsedSlot = currentSlot;
+        final I expiredSlot = currentSlot;
         try {
             currentSlot = config.getSlotSupplier().get();
         } catch (final Exception e) {
@@ -122,32 +122,32 @@ public class Spinner<I, O> {
 
         // compute the start time of the new slot
         final long diff = elapsedTimeMillis();
-        final long numberOfElapsedSlots = diff / config.getTimeSlotSpan();
-        startTime += numberOfElapsedSlots * config.getTimeSlotSpan();
+        final long numberOfExpiredSlots = diff / config.getTimeSlotSpan();
+        startTime += numberOfExpiredSlots * config.getTimeSlotSpan();
 
-        // Manage the queue of elapsed slots:
-        // the elapsedSlot must be added and older than configured slotsNumber (expired slots) must be dropped
-        if (numberOfElapsedSlots > config.getSlotsNumber()) {
+        // Manage the queue of expired slots:
+        // the expiredSlot must be added and older than configured slotsNumber (expired slots) must be dropped
+        if (numberOfExpiredSlots > config.getSlotsNumber()) {
             // no need to keep expired slots
             queue.clear();
         } else {
-            if (numberOfElapsedSlots > 1) {
-                // add (numberOfElapsedSlots - 1) empty slots
-                // -1 because the latest elapsed slot will be added as well
+            if (numberOfExpiredSlots > 1) {
+                // add (numberOfExpiredSlots - 1) empty slots
+                // -1 because the latest expired slot will be added as well
                 try {
                     final I emptySlot = config.getSlotSupplier().get();
-                    for (int i = 0; i < numberOfElapsedSlots - 1; i++) {
+                    for (int i = 0; i < numberOfExpiredSlots - 1; i++) {
                         queue.add(emptySlot);
                     }
                 } catch (final Exception e) {
                     LOG.error("Slot creation failed: {}", e.getMessage());
                 }
             }
-            queue.add(elapsedSlot);
+            queue.add(expiredSlot);
         }
 
         // compute the aggregated data
-        data = config.getSlotsAggregator().aggregate(queue.iterator(), elapsedSlot);
+        data = config.getSlotsAggregator().aggregate(queue.iterator(), expiredSlot);
         if (LOG.isDebugEnabled()) {
             LOG.debug("aggregated: {}", data);
         }
@@ -156,7 +156,7 @@ public class Spinner<I, O> {
     /**
      * @return true if the time associated with the current slot has passed
      */
-    private boolean isSlotElapsed() {
+    private boolean isSlotExpired() {
         return elapsedTimeMillis() >= config.getTimeSlotSpan();
     }
 
