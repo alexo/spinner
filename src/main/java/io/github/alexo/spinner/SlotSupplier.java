@@ -4,7 +4,7 @@ package io.github.alexo.spinner;
  * Factory for slot objects of type <I>. The implementation is responsible for providing a fresh instance each time the expired slot
  * must be replaced with a new one.
  *
- * @param <I> the type of slot object.
+ * @param <I> the type of the object to keep in the slot.
  */
 public interface SlotSupplier<I> {
     /**

@@ -9,5 +9,5 @@ import java.util.Iterator;
  * @param <O> type of the aggregated value.
  */
 public interface SlotsAggregator<I, O> {
-    O aggregate(Iterator<I> slotsIterator, I latestElapsedSlot);
+    O aggregate(Iterator<I> slotsIterator, I expiredSlot);
 }
