@@ -1,24 +1,24 @@
 package io.github.alexo.spinner;
 
-import static org.junit.Assert.assertEquals;
-import static org.mockito.Mockito.when;
-import io.github.alexo.spinner.Spinner;
-import io.github.alexo.spinner.SpinnerConfig;
 import io.github.alexo.spinner.Spinner.Clock;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Test;
+import org.mockito.Mock;
 
 import java.util.Iterator;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.BiFunction;
 
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
-import org.mockito.Mock;
-import org.mockito.Mockito;
-import org.mockito.MockitoAnnotations;
+import static java.lang.Runtime.getRuntime;
+import static java.util.concurrent.Executors.newFixedThreadPool;
+import static org.junit.Assert.assertEquals;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.*;
+import static org.mockito.MockitoAnnotations.initMocks;
 
 /**
  * @author Alex Objelean
@@ -32,9 +32,9 @@ public class SpinnerTest {
 
     @Before
     public void setUp() {
-        MockitoAnnotations.initMocks(this);
-        victim = Spinner.create(createDefaultConfig());
-        executorService = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
+        initMocks(this);
+        victim = Spinner.create(createConfig());
+        executorService = newFixedThreadPool(getRuntime().availableProcessors());
         setClockToStep(0);
     }
 
@@ -43,29 +43,24 @@ public class SpinnerTest {
         executorService.shutdown();
     }
 
-    private SpinnerConfig<AtomicLong, Number> createDefaultConfig() {
-        final SlotSupplier<AtomicLong> stepSupplier = new SlotSupplier<AtomicLong>() {
-            public AtomicLong get() {
-                return new AtomicLong();
-            }
-        };
-        final SpinnerConfig<AtomicLong, Number> config = new SpinnerConfig<AtomicLong, Number>().setClock(clock)
-                .setSlotSupplier(stepSupplier).setSlotsAggregator(createAverageAggregator())
-                .setSlotsNumber(NUMBER_OF_STEPS).setTimeSlotSpan(1);
-        return config;
+    private SpinnerConfig<AtomicLong, Number> createConfig() {
+        return new SpinnerConfig<AtomicLong, Number>()
+                .setClock(clock)
+                .setSlotSupplier(AtomicLong::new)
+                .setSlotsAggregator(createAverageAggregator())
+                .setSlotsNumber(NUMBER_OF_STEPS)
+                .setTimeSlotSpan(1);
     }
 
-    private SlotsAggregator<AtomicLong, Number> createAverageAggregator() {
-        return new SlotsAggregator<AtomicLong, Number>() {
-            public Number aggregate(final Iterator<AtomicLong> input, final AtomicLong latestElapsed) {
-                int index = 0;
-                long sum = 0;
-                for (; input.hasNext();) {
-                    index++;
-                    sum += input.next().longValue();
-                }
-                return index > 0 ? sum / index : sum;
+    private BiFunction<Iterator<AtomicLong>, AtomicLong, Number> createAverageAggregator() {
+        return (input, latestElapsed) -> {
+            int index = 0;
+            long sum = 0;
+            for (; input.hasNext();) {
+                index++;
+                sum += input.next().longValue();
             }
+            return index > 0 ? sum / index : sum;
         };
     }
 
@@ -126,11 +121,9 @@ public class SpinnerTest {
     }
 
     private Callable<Void> createAdderCallable() {
-        final Callable<Void> adder = new Callable<Void>() {
-            public Void call() throws Exception {
-                victim.getCurrentSlot().incrementAndGet();
-                return null;
-            }
+        final Callable<Void> adder = () -> {
+            victim.getCurrentSlot().incrementAndGet();
+            return null;
         };
         return adder;
     }
@@ -148,15 +141,13 @@ public class SpinnerTest {
     private void executeConcurrently(final int times, final Callable<Void> callable) throws Exception {
         final CountDownLatch latch = new CountDownLatch(times);
         for (int i = 0; i < times; i++) {
-            executorService.submit(new Callable<Void>() {
-                public Void call() throws Exception {
-                    try {
-                        callable.call();
-                    } finally {
-                        latch.countDown();
-                    }
-                    return null;
+            executorService.submit((Callable<Void>) () -> {
+                try {
+                    callable.call();
+                } finally {
+                    latch.countDown();
                 }
+                return null;
             });
         }
         latch.await();
@@ -164,18 +155,18 @@ public class SpinnerTest {
 
     @Test(expected = IllegalArgumentException.class)
     public void cannotAcceptInvalidRange() {
-        Spinner.create(createDefaultConfig().setTimeSlotSpan(0));
+        Spinner.create(createConfig().setTimeSlotSpan(0));
     }
 
     @Test(expected = IllegalArgumentException.class)
     public void cannotAcceptInvalidSize() {
-        Spinner.create(createDefaultConfig().setSlotsNumber(0));
+        Spinner.create(createConfig().setSlotsNumber(0));
     }
 
     @Test
     public void shouldAggregateOnlyOncePerStep() throws Exception {
-        final SlotsAggregator<AtomicLong, Number> stepAggregatorSpy = Mockito.spy(createAverageAggregator());
-        victim = Spinner.create(createDefaultConfig().setSlotsAggregator(stepAggregatorSpy));
+        final BiFunction<Iterator<AtomicLong>, AtomicLong, Number> stepAggregatorSpy = spy(createAverageAggregator());
+        victim = Spinner.create(createConfig().setSlotsAggregator(stepAggregatorSpy));
 
         final int times = 100;
 
@@ -189,8 +180,7 @@ public class SpinnerTest {
         setClockToStep(2);
         executeConcurrently(times, adder);
 
-        Mockito.verify(stepAggregatorSpy, Mockito.times(3)).aggregate(Mockito.any(Iterator.class),
-            Mockito.any(AtomicLong.class));
+        verify(stepAggregatorSpy, times(3)).apply(any(Iterator.class), any(AtomicLong.class));
     }
 
     @Test

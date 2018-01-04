@@ -7,7 +7,9 @@ import org.openjdk.jmh.runner.RunnerException;
 import org.openjdk.jmh.runner.options.Options;
 import org.openjdk.jmh.runner.options.OptionsBuilder;
 
+import java.util.Iterator;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.BiFunction;
 
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.openjdk.jmh.annotations.Mode.Throughput;
@@ -36,13 +38,14 @@ public class SpinnerBenchmark {
     }
 
     private SpinnerConfig<AtomicLong, Number> createDefaultConfig() {
-        final SlotSupplier<AtomicLong> stepSupplier = () -> new AtomicLong();
         final SpinnerConfig<AtomicLong, Number> config = new SpinnerConfig<AtomicLong, Number>()
-                .setSlotSupplier(stepSupplier).setSlotsAggregator(createAverageAggregator()).setSlotsNumber(10);
+                .setSlotSupplier(() -> new AtomicLong())
+                .setSlotsAggregator(createAverageAggregator())
+                .setSlotsNumber(10);
         return config;
     }
 
-    private SlotsAggregator<AtomicLong, Number> createAverageAggregator() {
+    private BiFunction<Iterator<AtomicLong>, AtomicLong, Number> createAverageAggregator() {
         return (input, latestElapsed) -> {
             int index = 0;
             long sum = 0;

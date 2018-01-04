@@ -2,6 +2,10 @@ package io.github.alexo.spinner;
 
 import io.github.alexo.spinner.Spinner.Clock;
 
+import java.util.Iterator;
+import java.util.function.BiFunction;
+import java.util.function.Supplier;
+
 /**
  * Holds Spinner slot related settings.
  *
@@ -15,17 +19,17 @@ public class SpinnerConfig<I, O> {
      */
     private int slotsNumber = DEFAULT_QUEUE_SIZE;
     /**
-     * {@link #setTimeSpan(long)}
+     * {@link #setTimeSlotSpan(long)}
      */
     private long timeSlotSpan = DEFAULT_TIME_SLOT_SPAN;
     /**
      * {@link #setSlotSupplier(Supplier)}
      */
-    private SlotSupplier<I> slotSupplier;
+    private Supplier<I> slotSupplier;
     /**
-     * {@link #setSlotsAggregator(Function)}
+     * {@link #setSlotsAggregator(BiFunction)}
      */
-    private SlotsAggregator<I, O> slotsAggregator;
+    private BiFunction<Iterator<I>, I, O> slotsAggregator;
     /**
      * {@link #setClock(Clock)}
      */
@@ -59,19 +63,19 @@ public class SpinnerConfig<I, O> {
         return clock;
     }
 
-    public SlotSupplier<I> getSlotSupplier() {
+    public Supplier<I> getSlotSupplier() {
         return slotSupplier;
     }
 
     /**
      * Factory responsible for slot object creation. A slot can be anything, which can be used later for data aggregation.
      */
-    public SpinnerConfig<I, O> setSlotSupplier(final SlotSupplier<I> slotSupplier) {
+    public SpinnerConfig<I, O> setSlotSupplier(final Supplier<I> slotSupplier) {
         this.slotSupplier = slotSupplier;
         return this;
     }
 
-    public SlotsAggregator<I, O> getSlotsAggregator() {
+    public BiFunction<Iterator<I>, I, O> getSlotsAggregator() {
         return slotsAggregator;
     }
 
@@ -79,7 +83,7 @@ public class SpinnerConfig<I, O> {
      * Responsible for computing aggregated result for a collection of provided input slots. The implementation should return a non empty
      * result, even if the provided input is an empty iterator.
      */
-    public SpinnerConfig<I, O> setSlotsAggregator(final SlotsAggregator<I, O> slotsAggregator) {
+    public SpinnerConfig<I, O> setSlotsAggregator(final BiFunction<Iterator<I>, I, O> slotsAggregator) {
         this.slotsAggregator = slotsAggregator;
         return this;
     }

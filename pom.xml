@@ -18,7 +18,6 @@
     <url>http://maven.apache.org</url>
 
     <properties>
-        <commons.lang.version>2.6</commons.lang.version>
         <jacoco.version>0.7.2.201409121644</jacoco.version>
         <jmh.version>1.19</jmh.version>
         <junit.version>4.11</junit.version>

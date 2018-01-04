@@ -43,7 +43,7 @@ public class Spinner<I, O> {
     private final Queue<I> queue;
 
     public static <I, O> Spinner<I, O> create(final SpinnerConfig<I, O> config) {
-        return new Spinner<I, O>(config);
+        return new Spinner<>(config);
     }
 
     /**
@@ -69,7 +69,7 @@ public class Spinner<I, O> {
         currentSlot = config.getSlotSupplier().get();
         queue = createQueue(config.getSlotsNumber());
         // compute initial value
-        data = config.getSlotsAggregator().aggregate(queue.iterator(), currentSlot);
+        data = config.getSlotsAggregator().apply(queue.iterator(), currentSlot);
     }
 
     /**
@@ -143,7 +143,7 @@ public class Spinner<I, O> {
         }
 
         // compute the aggregated data
-        data = config.getSlotsAggregator().aggregate(queue.iterator(), expiredSlot);
+        data = config.getSlotsAggregator().apply(queue.iterator(), expiredSlot);
         if (LOG.isDebugEnabled()) {
             LOG.debug("aggregated: {}", data);
         }
