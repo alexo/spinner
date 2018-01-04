@@ -3,22 +3,13 @@ package io.github.alexo.spinner;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.Iterator;
 import java.util.Queue;
-import java.util.Spliterator;
-import java.util.Spliterators;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
-import java.util.stream.StreamSupport;
-
-import static java.util.Spliterator.ORDERED;
-import static java.util.Spliterators.spliterator;
-import static java.util.Spliterators.spliteratorUnknownSize;
-import static java.util.stream.StreamSupport.stream;
 
 /**
  * Data structure responsible for managing data based on time slots. The underlying implementation uses a queue to store the expired data
