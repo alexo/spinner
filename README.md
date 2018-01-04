@@ -9,16 +9,22 @@ A small library implementing an algorithm which can be used for efficient metric
 
 # Examples
 
+The data is responsible to compute the average number of values for all slots.
 ~~~
-Spinner<AtomicLong, Number> victim = Spinner.create(new SpinnerConfig<AtomicLong, Number>()        
-        .setSlotSupplier(AtomicLong::new)
-        .setSlotsAggregator((input, latestElapsed) -> {
-            int index = 0;
-            long sum = 0;
-            for (; input.hasNext();) {
-                index++;
-                sum += input.next().longValue();
-            }
-            return index > 0 ? sum / index : sum;
-        });
+Spinner<AtomicLong, Number> spinner = new Spinner.Builder<AtomicLong, Number>()        
+        .withSupplier(AtomicLong::new)
+        .withAggregator(asAverage())
+        .withSlotsNumber(10)
+        .build();
+
+spinner.getCurrentSlot().incrementAndGet();
+System.out.println(spinner.getData());        
+~~~
+The average aggregator looks like this:
+~~~
+private static Function<Stream<AtomicLong>, Double> asAverage() {
+    return it -> it.mapToInt(AtomicLong::intValue)
+            .average()
+            .orElse(0);
+}
 ~~~

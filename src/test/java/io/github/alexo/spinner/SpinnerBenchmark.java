@@ -4,12 +4,11 @@ import org.junit.Ignore;
 import org.openjdk.jmh.annotations.*;
 import org.openjdk.jmh.runner.Runner;
 import org.openjdk.jmh.runner.RunnerException;
-import org.openjdk.jmh.runner.options.Options;
 import org.openjdk.jmh.runner.options.OptionsBuilder;
 
-import java.util.Iterator;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.BiFunction;
+import java.util.function.Function;
+import java.util.stream.Stream;
 
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.openjdk.jmh.annotations.Mode.Throughput;
@@ -25,11 +24,14 @@ import static org.openjdk.jmh.runner.options.TimeValue.seconds;
 @Fork(1)
 public class SpinnerBenchmark {
     private Spinner<AtomicLong, Number> victim;
-    long index = 0;
 
     @Setup
     public void setUp() {
-        victim = Spinner.create(createDefaultConfig());
+        victim = new Spinner.Builder<AtomicLong, Number>()
+                .withSupplier(AtomicLong::new)
+                .withAggregator(asAverage())
+                .withSlotsNumber(10)
+                .build();
     }
 
     @Benchmark
@@ -37,36 +39,19 @@ public class SpinnerBenchmark {
         victim.getCurrentSlot().incrementAndGet();
     }
 
-    private SpinnerConfig<AtomicLong, Number> createDefaultConfig() {
-        final SpinnerConfig<AtomicLong, Number> config = new SpinnerConfig<AtomicLong, Number>()
-                .setSlotSupplier(() -> new AtomicLong())
-                .setSlotsAggregator(createAverageAggregator())
-                .setSlotsNumber(10);
-        return config;
-    }
-
-    private BiFunction<Iterator<AtomicLong>, AtomicLong, Number> createAverageAggregator() {
-        return (input, latestElapsed) -> {
-            int index = 0;
-            long sum = 0;
-            for (; input.hasNext();) {
-                index++;
-                final AtomicLong value = input.next();
-                sum += value.longValue();
-            }
-            return index > 0 ? sum / index : sum;
-        };
+    private static Function<Stream<AtomicLong>, Double> asAverage() {
+        return it -> it.mapToInt(AtomicLong::intValue)
+                .average()
+                .orElse(0);
     }
 
     public static void main(final String[] args) throws RunnerException {
         final int threadsNumber = Runtime.getRuntime().availableProcessors();
-        final Options opt = new OptionsBuilder()
+        new Runner(new OptionsBuilder()
                 .include(SpinnerBenchmark.class.getSimpleName())
                 .resultFormat(JSON)
                 .measurementTime(seconds(10))
                 .threads(threadsNumber)
-                .build();
-
-        new Runner(opt).run();
+                .build()).run();
     }
 }

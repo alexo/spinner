@@ -1,11 +1,24 @@
 package io.github.alexo.spinner;
 
-import java.util.Queue;
-import java.util.concurrent.ArrayBlockingQueue;
-import java.util.concurrent.atomic.AtomicBoolean;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import java.util.Iterator;
+import java.util.Queue;
+import java.util.Spliterator;
+import java.util.Spliterators;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.BiFunction;
+import java.util.function.Function;
+import java.util.function.Supplier;
+import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
+
+import static java.util.Spliterator.ORDERED;
+import static java.util.Spliterators.spliterator;
+import static java.util.Spliterators.spliteratorUnknownSize;
+import static java.util.stream.StreamSupport.stream;
 
 /**
  * Data structure responsible for managing data based on time slots. The underlying implementation uses a queue to store the expired data
@@ -42,8 +55,68 @@ public class Spinner<I, O> {
      */
     private final Queue<I> queue;
 
-    public static <I, O> Spinner<I, O> create(final SpinnerConfig<I, O> config) {
-        return new Spinner<>(config);
+    public static class Builder<I, O> {
+        private SpinnerConfig<I, O> config;
+        public Builder() {
+            config = new SpinnerConfig<>();
+        }
+
+        Builder(final Clock clock) {
+            this();
+            this.config.setClock(clock);
+        }
+
+        public Builder withSupplier(final Supplier<I> supplier) {
+            config.setSlotSupplier(supplier);
+            return this;
+        }
+
+        public Builder withAggregator(final BiFunction<Stream<I>, I, O> aggregator) {
+            config.setAggregator(aggregator);
+            return this;
+        }
+
+        /**
+         * @param aggregator a function which computes an aggregate for all the inputs. Similar to the {@link #withAggregator(BiFunction)} but doesn't provide the last expired input.
+         */
+        public Builder withAggregator(final Function<Stream<I>, O> aggregator) {
+            return withAggregator((it, last) -> aggregator.apply(it));
+        }
+
+        public Builder withDuration(final long durationMs) {
+            config.setDuration(durationMs);
+            return this;
+        }
+
+        public Builder withSlotsNumber(final int slotsNumber) {
+            config.setSlotsNumber(slotsNumber);
+            return this;
+        }
+
+        SpinnerConfig<I, O> getConfig() {
+            return config;
+        }
+
+        public Spinner<I, O> build() {
+            notNull(config.getSlotSupplier());
+            notNull(config.getAggregator());
+            notNull(config.getClock());
+            isTrue(config.getDuration() > 0, "timeSlotSpan must be a positive value");
+            isTrue(config.getSlotsNumber() > 0, "slotsNumber must be a positive value");
+            return new Spinner<>(this);
+        }
+
+        private static void isTrue(final boolean expression, final String message) {
+            if (expression == false) {
+                throw new IllegalArgumentException(message);
+            }
+        }
+
+        private static void notNull(final Object object) {
+            if (object == null) {
+                throw new IllegalArgumentException();
+            }
+        }
     }
 
     /**
@@ -56,20 +129,13 @@ public class Spinner<I, O> {
         long now();
     }
 
-    /**
-     * @param config {@link SpinnerConfig} used to setup the spinner.
-     */
-    private Spinner(final SpinnerConfig<I, O> config) {
-        if (config == null) {
-            throw new IllegalArgumentException("Invalid config");
-        }
-        config.validate();
-        this.config = config;
+    private Spinner(final Builder<I, O> builder) {
+        this.config = builder.getConfig();
         startTime = config.getClock().now();
         currentSlot = config.getSlotSupplier().get();
         queue = createQueue(config.getSlotsNumber());
         // compute initial value
-        data = config.getSlotsAggregator().apply(queue.iterator(), currentSlot);
+        data = config.getAggregator().apply(queue.stream(), currentSlot);
     }
 
     /**
@@ -118,8 +184,8 @@ public class Spinner<I, O> {
 
         // compute the start time of the new slot
         final long diff = elapsedTimeMillis();
-        final long numberOfExpiredSlots = diff / config.getTimeSlotSpan();
-        startTime += numberOfExpiredSlots * config.getTimeSlotSpan();
+        final long numberOfExpiredSlots = diff / config.getDuration();
+        startTime += numberOfExpiredSlots * config.getDuration();
 
         // Manage the queue of expired slots:
         // the expiredSlot must be added and older than configured slotsNumber (expired slots) must be dropped
@@ -143,7 +209,7 @@ public class Spinner<I, O> {
         }
 
         // compute the aggregated data
-        data = config.getSlotsAggregator().apply(queue.iterator(), expiredSlot);
+        data = config.getAggregator().apply(queue.stream(), expiredSlot);
         if (LOG.isDebugEnabled()) {
             LOG.debug("aggregated: {}", data);
         }
@@ -153,7 +219,7 @@ public class Spinner<I, O> {
      * @return true if the time associated with the current slot has passed
      */
     private boolean isSlotExpired() {
-        return elapsedTimeMillis() >= config.getTimeSlotSpan();
+        return elapsedTimeMillis() >= config.getDuration();
     }
 
     /**

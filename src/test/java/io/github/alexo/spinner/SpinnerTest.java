@@ -6,18 +6,18 @@ import org.junit.Before;
 import org.junit.Test;
 import org.mockito.Mock;
 
-import java.util.Iterator;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.BiFunction;
+import java.util.function.Function;
+import java.util.stream.Stream;
 
 import static java.lang.Runtime.getRuntime;
 import static java.util.concurrent.Executors.newFixedThreadPool;
 import static org.junit.Assert.assertEquals;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.when;
 import static org.mockito.MockitoAnnotations.initMocks;
 
 /**
@@ -33,9 +33,17 @@ public class SpinnerTest {
     @Before
     public void setUp() {
         initMocks(this);
-        victim = Spinner.create(createConfig());
+        victim = createBuilder().build();
         executorService = newFixedThreadPool(getRuntime().availableProcessors());
         setClockToStep(0);
+    }
+
+    private Spinner.Builder<AtomicLong, Number> createBuilder() {
+        return new Spinner.Builder<>(clock)
+                .withSupplier(AtomicLong::new)
+                .withAggregator(asAverage())
+                .withSlotsNumber(NUMBER_OF_STEPS)
+                .withDuration(1);
     }
 
     @After
@@ -43,25 +51,10 @@ public class SpinnerTest {
         executorService.shutdown();
     }
 
-    private SpinnerConfig<AtomicLong, Number> createConfig() {
-        return new SpinnerConfig<AtomicLong, Number>()
-                .setClock(clock)
-                .setSlotSupplier(AtomicLong::new)
-                .setSlotsAggregator(createAverageAggregator())
-                .setSlotsNumber(NUMBER_OF_STEPS)
-                .setTimeSlotSpan(1);
-    }
-
-    private BiFunction<Iterator<AtomicLong>, AtomicLong, Number> createAverageAggregator() {
-        return (input, latestElapsed) -> {
-            int index = 0;
-            long sum = 0;
-            for (; input.hasNext();) {
-                index++;
-                sum += input.next().longValue();
-            }
-            return index > 0 ? sum / index : sum;
-        };
+    private static Function<Stream<AtomicLong>, Double> asAverage() {
+        return it -> it.mapToInt(AtomicLong::intValue)
+                .average()
+                .orElse(0);
     }
 
     @Test
@@ -134,7 +127,7 @@ public class SpinnerTest {
      * @param step zero based index.
      */
     private void setClockToStep(final int step) {
-        final long time = step * victim.getConfig().getTimeSlotSpan();
+        final long time = step * victim.getConfig().getDuration();
         when(clock.now()).thenReturn(time);
     }
 
@@ -155,18 +148,24 @@ public class SpinnerTest {
 
     @Test(expected = IllegalArgumentException.class)
     public void cannotAcceptInvalidRange() {
-        Spinner.create(createConfig().setTimeSlotSpan(0));
+        createBuilder().withDuration(0).build();
     }
 
     @Test(expected = IllegalArgumentException.class)
     public void cannotAcceptInvalidSize() {
-        Spinner.create(createConfig().setSlotsNumber(0));
+        createBuilder().withSlotsNumber(0).build();
     }
 
     @Test
     public void shouldAggregateOnlyOncePerStep() throws Exception {
-        final BiFunction<Iterator<AtomicLong>, AtomicLong, Number> stepAggregatorSpy = spy(createAverageAggregator());
-        victim = Spinner.create(createConfig().setSlotsAggregator(stepAggregatorSpy));
+        final AtomicInteger counter = new AtomicInteger();
+
+        victim = createBuilder()
+                .withAggregator(asAverage().andThen(d -> {
+                    counter.incrementAndGet();
+                    return d;
+                }))
+                .build();
 
         final int times = 100;
 
@@ -180,7 +179,7 @@ public class SpinnerTest {
         setClockToStep(2);
         executeConcurrently(times, adder);
 
-        verify(stepAggregatorSpy, times(3)).apply(any(Iterator.class), any(AtomicLong.class));
+        assertEquals(counter.get(), 3);
     }
 
     @Test
