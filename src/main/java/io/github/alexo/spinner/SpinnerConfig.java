@@ -13,7 +13,7 @@ import java.util.stream.Stream;
  */
 class SpinnerConfig<I, O> {
     private static final int DEFAULT_QUEUE_SIZE = 1;
-    private static final long DEFAULT_TIME_SLOT_SPAN = 1000;
+    private static final long DEFAULT_DURATION = 1000;
     /**
      * {@link #setSlotsNumber(int)}
      */
@@ -21,7 +21,7 @@ class SpinnerConfig<I, O> {
     /**
      * {@link #setDuration(long)}
      */
-    private long duration = DEFAULT_TIME_SLOT_SPAN;
+    private long duration = DEFAULT_DURATION;
     /**
      * {@link #setSlotSupplier(Supplier)}
      */
